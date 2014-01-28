@@ -91,15 +91,16 @@ def success(output):
 def fetch(args):
     "Fetch a package's source, returning the path to it"
 
-    if args["<path>"] is None:
+    path = args['<path>']
+    pkg = args['<package>']
+
+    if path is None:
         dest = os.path.join(repodir(), os.path.split(expand("."))[-1])
         if os.path.exists(dest):
-            print "Already found fetched copy of {}, skipping".format(pkg)
+            print "Already found fetched copy of {} at {}, skipping".format(pkg,dest)
             return dest
         shutil.copytree(expand("."), dest)
         return dest
-
-    path = args['<path>']
 
     local = args['--local']
     use_git = args['--git']
@@ -112,13 +113,12 @@ def fetch(args):
             sys.stderr.write("error: neither --git nor --hg given, and can't infer from package path\n")
             os.exit(1)
 
-    pkg = args['<package>']
     if pkg is None:
         pkg, ext = os.path.splitext(os.path.basename(path))
 
     dest = os.path.join(expand(repodir()), pkg)
     if os.path.exists(dest):
-        print "Already found fetched copy of {}, skipping".format(pkg)
+        print "Already found fetched copy of {} at {}, skipping".format(pkg,dest)
         return dest
 
     if local:
