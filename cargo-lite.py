@@ -97,7 +97,7 @@ def fetch(args):
     if path is None:
         dest = os.path.join(repodir(), os.path.split(expand("."))[-1])
         if os.path.exists(dest):
-            print "Already found fetched copy of {} at {}, skipping".format(pkg,dest)
+            print "Already found fetched copy of {} at {}, skipping".format(pkg if pkg is not None else "your package",dest)
             return dest
         shutil.copytree(expand("."), dest)
         return dest
