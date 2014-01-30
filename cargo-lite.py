@@ -30,7 +30,7 @@ try:
     from sh import hg
 except ImportError:
     def hg(*args, **kwargs):
-        sys.stderr.write("git not installed, but asked for!\n")
+        sys.stderr.write("hg not installed, but asked for!\n")
         sys.exit(1)
 try:
     from sh import rustc
@@ -60,9 +60,9 @@ def libdir():
 
 
 def from_pkgdir(path):
-    path = os.path.join(path, "cargo-lite.conf")
+    path = expand(os.path.join(path, "cargo-lite.conf"))
     if not os.path.exists(path):
-        raise Exception("no cargo-lite.conf in {}".format(path))
+        raise Exception("{} does not exist".format(path))
     return toml.loads(open(path).read())
 
 
@@ -97,7 +97,7 @@ def fetch(args):
     if path is None:
         dest = os.path.join(repodir(), os.path.split(expand("."))[-1])
         if os.path.exists(dest):
-            print "Already found fetched copy of {} at {}, skipping".format(pkg if pkg is not None else "your package",dest)
+            print "Already found fetched copy of cwd, skipping"
             return dest
         shutil.copytree(expand("."), dest)
         return dest
@@ -106,15 +106,17 @@ def fetch(args):
     use_git = args['--git']
     use_hg = args['--hg']
 
+    pkg = args['<package>']
+    if pkg is None:
+        pkg, ext = os.path.splitext(os.path.basename(path))
+
+
     if not use_hg and not use_git and not local:
         if path.endswith('.git'):
             use_git = True
         else:
             sys.stderr.write("error: neither --git nor --hg given, and can't infer from package path\n")
             os.exit(1)
-
-    if pkg is None:
-        pkg, ext = os.path.splitext(os.path.basename(path))
 
     dest = os.path.join(expand(repodir()), pkg)
     if os.path.exists(dest):
@@ -135,7 +137,7 @@ def build(args, conf):
         s = conf['subpackages']
         for subpackage in s:
             with cd(subpackage):
-                build(args, from_pkgdir(subpackage))
+                build(args, from_pkgdir("."))
 
     if 'build' in conf:
         b = conf['build']
@@ -158,6 +160,8 @@ def build(args, conf):
             args.append("--rlib")
             args.append("--staticlib")
             args.append("--dylib")
+            args.append("-L")
+            args.append(libdir())
             output = rustc(*args)
 
             if output.exit_code != 0:
@@ -168,7 +172,13 @@ def build(args, conf):
                 shutil.copy(os.path.join(os.path.dirname(crate_root), fname), libdir())
 
         elif 'build_cmd' in b:
-            out = sh.Command(b["build_cmd"])()
+            try:
+                out = sh.Command(b["build_cmd"])()
+            except sh.ErrorReturnCode as e:
+                print "The build command for {} failed with exit code {}".format(
+                        args['<path>'], e.exit_code)
+                print e.message
+                sys.exit(1)
             if not out.startswith("cargo-lite: "):
                 raise Exception("malformed output in build_cmd's stdout")
             if out.startswith("cargo-lite: artifacts"):
@@ -185,7 +195,7 @@ def build(args, conf):
                 sys.exit(1)
         else:
             raise Exception("unrecognized build information in cargo-lite.conf")
-    else:
+    elif not 'subpackages' in conf:
         raise Exception("no build information in cargo-lite.conf!")
 
 
